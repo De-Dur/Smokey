@@ -62,9 +62,13 @@
     gap: 8px;
   }
 
-  .exportRow,
-  .cameraRow {
+  .exportRow {
     grid-template-columns: 1fr 1fr;
+    margin-bottom: 8px;
+  }
+
+  .cameraRow {
+    grid-template-columns: 1fr 1fr 1fr;
     margin-bottom: 8px;
   }
 
@@ -235,6 +239,7 @@
 
   <div class="cameraRow">
     <button id="cameraBtn">Camera: OFF</button>
+    <button id="flipBtn">Flip: FRONT</button>
     <button id="handBtn">Hand tracking: OFF</button>
   </div>
 
@@ -300,6 +305,7 @@ let cameraStream = null;
 let cameraReady = false;
 let cameraMirror = false;
 let cameraStarting = false;
+let cameraFacing = 'environment';
 
 let handTrackingEnabled = false;
 let handTrackingLoading = false;
@@ -342,6 +348,7 @@ const controls = {
   pngBtn: document.getElementById('pngBtn'),
   videoBtn: document.getElementById('videoBtn'),
   cameraBtn: document.getElementById('cameraBtn'),
+  flipBtn: document.getElementById('flipBtn'),
   handBtn: document.getElementById('handBtn')
 };
 
@@ -650,9 +657,17 @@ function copyFrameToRecordingCanvas() {
   );
 }
 
+function setFlipButtonState() {
+  controls.flipBtn.textContent =
+    cameraFacing === 'environment' ? 'Flip: FRONT' : 'Flip: REAR';
+  controls.flipBtn.disabled = !cameraReady || cameraStarting;
+  controls.flipBtn.style.opacity = controls.flipBtn.disabled ? '0.55' : '1';
+}
+
 function setCameraButtonState() {
   controls.cameraBtn.textContent = cameraReady ? 'Camera: ON' : 'Camera: OFF';
   controls.cameraBtn.classList.toggle('active', cameraReady);
+  setFlipButtonState();
 }
 
 function setHandButtonState(label) {
@@ -692,7 +707,7 @@ async function startCamera() {
   try {
     cameraStream = await navigator.mediaDevices.getUserMedia({
       video: {
-        facingMode: { ideal: 'environment' },
+        facingMode: { ideal: cameraFacing },
         width: { ideal: 1920 },
         height: { ideal: 1080 }
       },
@@ -704,7 +719,7 @@ async function startCamera() {
 
     const track = cameraStream.getVideoTracks()[0];
     const settings = track && track.getSettings ? track.getSettings() : {};
-    cameraMirror = settings.facingMode === 'user';
+    cameraMirror = settings.facingMode === 'user' || cameraFacing === 'user';
     cameraReady = true;
     setCameraButtonState();
     return true;
@@ -721,6 +736,7 @@ async function startCamera() {
     return false;
   } finally {
     cameraStarting = false;
+    setCameraButtonState();
   }
 }
 
@@ -747,6 +763,33 @@ async function toggleCamera() {
     stopCamera();
   } else {
     await startCamera();
+  }
+}
+
+async function flipCamera() {
+  if (!cameraReady || cameraStarting) return;
+
+  const previousFacing = cameraFacing;
+  cameraFacing = cameraFacing === 'environment' ? 'user' : 'environment';
+
+  trackedHand.active = false;
+  handCursor.style.display = 'none';
+
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(track => track.stop());
+  }
+
+  cameraStream = null;
+  cameraVideo.srcObject = null;
+  cameraReady = false;
+  cameraMirror = false;
+  setCameraButtonState();
+
+  const started = await startCamera();
+
+  if (!started) {
+    cameraFacing = previousFacing;
+    setFlipButtonState();
   }
 }
 
@@ -818,8 +861,8 @@ function onHandResults(results) {
     const dy = y - trackedHand.y;
     const distance = Math.hypot(dx, dy);
 
-    // Ignore large jumps caused by temporary tracking loss.
-    if (distance < Math.max(w, h) * 0.20) {
+    // Shorter hand-tracking distance: half of the previous threshold.
+    if (distance < Math.max(w, h) * 0.10) {
       spray(x, y, dx, dy);
     }
   }
@@ -921,6 +964,7 @@ function loop() {
 }
 
 setCameraButtonState();
+setFlipButtonState();
 setHandButtonState();
 requestAnimationFrame(loop);
 requestAnimationFrame(processHandFrame);
@@ -1178,6 +1222,7 @@ controls.seedBtn.addEventListener('click', seedSky);
 controls.pngBtn.addEventListener('click', exportPNG);
 controls.videoBtn.addEventListener('click', toggleVideoRecording);
 controls.cameraBtn.addEventListener('click', toggleCamera);
+controls.flipBtn.addEventListener('click', flipCamera);
 controls.handBtn.addEventListener('click', toggleHandTracking);
 
 controls.pauseBtn.addEventListener('click', () => {
