@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>Cloud / Smoke / Spore Touch App</title>
+<style>
+  :root{
+    --white: rgba(255,255,255,0.96);
+    --soft: rgba(255,255,255,0.74);
+    --line: rgba(255,255,255,0.34);
+    --button: rgba(255,255,255,0.10);
+    --button-active: rgba(255,255,255,0.20);
+  }
+
+  html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #000;
+    font-family: Arial, Helvetica, sans-serif;
+    touch-action: none;
+  }
+
+  #cameraVideo {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    touch-action: none;
+  }
+
+  .ui {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    z-index: 10;
+    color: var(--white);
+    padding: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .exportRow,
+  .cameraRow,
+  .topRow {
+    display: grid;
+    gap: 8px;
+  }
+
+  .exportRow,
+  .cameraRow {
+    grid-template-columns: 1fr 1fr;
+    margin-bottom: 8px;
+  }
+
+  .cameraRow button.active {
+    background: rgba(255,255,255,0.24);
+    border-color: rgba(255,255,255,0.55);
+  }
+
+  .topRow {
+    grid-template-columns: 1.15fr 1fr 1fr 1fr;
+    margin-bottom: 10px;
+  }
+
+  .controlGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 16px;
+  }
+
+  .controlColumn {
+    display: grid;
+    gap: 5px;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: 66px 1fr 36px;
+    gap: 7px;
+    align-items: center;
+    min-width: 0;
+    font-size: 10px;
+    letter-spacing: 0.045em;
+    text-transform: uppercase;
+    color: var(--soft);
+    text-shadow: 0 1px 5px rgba(30,55,110,0.55);
+  }
+
+  button, select {
+    width: 100%;
+    min-width: 0;
+    border-radius: 13px;
+    padding: 10px 7px;
+    font-size: 12px;
+    border: 1px solid rgba(255,255,255,0.24);
+    background: var(--button);
+    color: var(--white);
+    outline: none;
+    box-shadow: none;
+    appearance: none;
+    -webkit-appearance: none;
+    backdrop-filter: blur(9px);
+    -webkit-backdrop-filter: blur(9px);
+  }
+
+  .exportRow button {
+    padding: 11px 8px;
+    font-size: 12px;
+    letter-spacing: 0.02em;
+  }
+
+  button:active, select:active {
+    background: var(--button-active);
+  }
+
+  input[type="range"] {
+    width: 100%;
+    min-width: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    height: 20px;
+    margin: 0;
+  }
+
+  input[type="range"]::-webkit-slider-runnable-track {
+    height: 2px;
+    background: var(--line);
+    border-radius: 999px;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    margin-top: -6px;
+    border-radius: 50%;
+    background: var(--white);
+    border: 0;
+    box-shadow: 0 1px 6px rgba(25,45,90,0.25);
+  }
+
+  input[type="range"]::-moz-range-track {
+    height: 2px;
+    background: var(--line);
+    border-radius: 999px;
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--white);
+    border: 0;
+  }
+
+  .controlLabel {
+    line-height: 1.12;
+  }
+
+  .value {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #handCursor {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 22px;
+    height: 22px;
+    margin-left: -11px;
+    margin-top: -11px;
+    border: 2px solid rgba(255,255,255,0.95);
+    border-radius: 50%;
+    box-shadow: 0 0 12px rgba(255,255,255,0.5);
+    pointer-events: none;
+    z-index: 8;
+    display: none;
+  }
+
+  .hint {
+    margin-top: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    text-align: center;
+    color: rgba(255,255,255,0.92);
+    letter-spacing: 0.055em;
+    text-transform: uppercase;
+    text-shadow: 0 1px 6px rgba(30,55,110,0.62);
+  }
+
+  @media (max-width: 420px) {
+    .controlGrid { gap: 7px 10px; }
+    .row {
+      grid-template-columns: 58px 1fr 30px;
+      gap: 5px;
+      font-size: 9px;
+    }
+    button, select {
+      padding: 9px 5px;
+      font-size: 11px;
+    }
+  }
+</style>
+</head>
+<body>
+<video id="cameraVideo" autoplay muted playsinline></video>
+<canvas id="c"></canvas>
+<canvas id="exportCanvas" style="display:none;"></canvas>
+<div id="handCursor"></div>
+
+<div class="ui">
+  <div class="exportRow">
+    <button id="pngBtn">Export PNG</button>
+    <button id="videoBtn">Export video</button>
+  </div>
+
+  <div class="cameraRow">
+    <button id="cameraBtn">Camera: OFF</button>
+    <button id="handBtn">Hand tracking: OFF</button>
+  </div>
+
+  <div class="topRow">
+    <select id="mode" aria-label="Effect mode">
+      <option value="cloud">Cloud</option>
+      <option value="smoke">Smoke</option>
+      <option value="dust">Dust</option>
+      <option value="spores">Spores</option>
+    </select>
+    <button id="seedBtn">Seed</button>
+    <button id="clearBtn">Clear</button>
+    <button id="pauseBtn">Pause</button>
+  </div>
+
+  <div class="controlGrid">
+    <div class="controlColumn">
+      <div class="row">
+        <span>Brush</span>
+        <input id="brush" type="range" min="20" max="220" value="120">
+        <span class="value" id="brushVal">120</span>
+      </div>
+      <div class="row">
+        <span>Amount</span>
+        <input id="amount" type="range" min="1" max="40" value="12">
+        <span class="value" id="amountVal">12</span>
+      </div>
+      <div class="row">
+        <span class="controlLabel">Wind<br>Direction</span>
+        <input id="windDirection" type="range" min="-180" max="180" value="0">
+        <span class="value" id="windDirectionVal">0°</span>
+      </div>
+    </div>
+
+    <div class="controlColumn">
+      <div class="row">
+        <span>Soft</span>
+        <input id="softness" type="range" min="10" max="100" value="70">
+        <span class="value" id="softVal">70</span>
+      </div>
+      <div class="row">
+        <span>Lift</span>
+        <input id="lift" type="range" min="-100" max="100" value="0">
+        <span class="value" id="liftVal">0</span>
+      </div>
+      <div class="row">
+        <span class="controlLabel">Wind<br>Speed</span>
+        <input id="windSpeed" type="range" min="0" max="100" value="18">
+        <span class="value" id="windSpeedVal">18</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="hint">Touch and drag</div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d', { alpha: true });
+const cameraVideo = document.getElementById('cameraVideo');
+const handCursor = document.getElementById('handCursor');
+let cameraStream = null;
+let cameraReady = false;
+let cameraMirror = false;
+let cameraStarting = false;
+
+let handTrackingEnabled = false;
+let handTrackingLoading = false;
+let handTrackingReady = false;
+let handsDetector = null;
+let handFrameBusy = false;
+let lastHandFrameTime = 0;
+let trackedHand = { active: false, x: 0, y: 0 };
+
+let w = 0;
+let h = 0;
+const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+let particles = [];
+const MAX_PARTICLES = 3200;
+let paused = false;
+let time = 0;
+
+const exportCanvas = document.getElementById('exportCanvas');
+const exportCtx = exportCanvas.getContext('2d');
+
+const controls = {
+  mode: document.getElementById('mode'),
+  brush: document.getElementById('brush'),
+  amount: document.getElementById('amount'),
+  windDirection: document.getElementById('windDirection'),
+  windSpeed: document.getElementById('windSpeed'),
+  softness: document.getElementById('softness'),
+  lift: document.getElementById('lift'),
+
+  brushVal: document.getElementById('brushVal'),
+  amountVal: document.getElementById('amountVal'),
+  windDirectionVal: document.getElementById('windDirectionVal'),
+  windSpeedVal: document.getElementById('windSpeedVal'),
+  softVal: document.getElementById('softVal'),
+  liftVal: document.getElementById('liftVal'),
+
+  clearBtn: document.getElementById('clearBtn'),
+  pauseBtn: document.getElementById('pauseBtn'),
+  seedBtn: document.getElementById('seedBtn'),
+  pngBtn: document.getElementById('pngBtn'),
+  videoBtn: document.getElementById('videoBtn'),
+  cameraBtn: document.getElementById('cameraBtn'),
+  handBtn: document.getElementById('handBtn')
+};
+
+function resize() {
+  w = window.innerWidth;
+  h = window.innerHeight;
+
+  canvas.width = Math.floor(w * dpr);
+  canvas.height = Math.floor(h * dpr);
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+window.addEventListener('resize', resize);
+resize();
+
+function updateLabels() {
+  controls.brushVal.textContent = controls.brush.value;
+  controls.amountVal.textContent = controls.amount.value;
+  controls.windDirectionVal.textContent = controls.windDirection.value + '°';
+  controls.windSpeedVal.textContent = controls.windSpeed.value;
+  controls.softVal.textContent = controls.softness.value;
+  controls.liftVal.textContent = controls.lift.value;
+}
+
+[
+  controls.brush,
+  controls.amount,
+  controls.windDirection,
+  controls.windSpeed,
+  controls.softness,
+  controls.lift
+].forEach(control => {
+  control.addEventListener('input', updateLabels);
+  control.addEventListener('change', updateLabels);
+});
+
+updateLabels();
+
+const presets = {
+  cloud: {
+    color: [255,255,255],
+    size: 44,
+    spread: 1.1,
+    drag: 0.985,
+    turbulence: 0.33,
+    life: 240,
+    alpha: 0.12,
+    blend: 'screen'
+  },
+  smoke: {
+    color: [235,238,245],
+    size: 30,
+    spread: 1.8,
+    drag: 0.978,
+    turbulence: 0.65,
+    life: 170,
+    alpha: 0.10,
+    blend: 'screen'
+  },
+  dust: {
+    color: [248,246,238],
+    size: 10,
+    spread: 2.8,
+    drag: 0.967,
+    turbulence: 0.85,
+    life: 120,
+    alpha: 0.16,
+    blend: 'lighter'
+  },
+  spores: {
+    color: [248,252,255],
+    size: 9,
+    spread: 2.3,
+    drag: 0.972,
+    turbulence: 1.0,
+    life: 150,
+    alpha: 0.18,
+    blend: 'lighter'
+  }
+};
+
+function state() {
+  const angle = Number(controls.windDirection.value) * Math.PI / 180;
+  const speed = Number(controls.windSpeed.value) * 0.002;
+
+  return {
+    mode: controls.mode.value,
+    brush: Number(controls.brush.value),
+    amount: Number(controls.amount.value),
+    windX: Math.cos(angle) * speed,
+    windY: Math.sin(angle) * speed,
+    softness: Number(controls.softness.value) / 100,
+    lift: Number(controls.lift.value) * 0.001
+  };
+}
+
+function clamp(v, a, b) {
+  return Math.max(a, Math.min(b, v));
+}
+
+function rand(a, b) {
+  return a + Math.random() * (b - a);
+}
+
+function addParticle(x, y, vx, vy, sizeMul = 1) {
+  const s = state();
+  const pset = presets[s.mode];
+
+  if (particles.length >= MAX_PARTICLES) {
+    particles.splice(0, Math.min(50, particles.length));
+  }
+
+  const life = pset.life * rand(0.7, 1.35);
+
+  particles.push({
+    x,
+    y,
+    vx,
+    vy,
+    size: pset.size * rand(0.6, 1.35) * sizeMul * (s.brush / 120),
+    life,
+    maxLife: life,
+    seed: Math.random() * 1000
+  });
+}
+
+function spray(x, y, dx, dy) {
+  const s = state();
+  const pset = presets[s.mode];
+
+  for (let i = 0; i < s.amount; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const radius = Math.random() * s.brush * 0.45;
+    const px = x + Math.cos(angle) * radius;
+    const py = y + Math.sin(angle) * radius;
+    const jitter = pset.spread;
+    const touchScale = s.mode === 'cloud' ? 0.0015 : 0.003;
+    const jitterScale =
+      s.mode === 'cloud' ? 0.10 :
+      s.mode === 'smoke' ? 0.18 :
+      0.30;
+
+    addParticle(
+      px,
+      py,
+      dx * touchScale + rand(-jitter, jitter) * jitterScale,
+      dy * touchScale + rand(-jitter, jitter) * jitterScale,
+      rand(0.7, 1.25)
+    );
+  }
+
+  pushExisting(x, y, dx, dy);
+}
+
+function pushExisting(x, y, dx, dy) {
+  const s = state();
+  const radius = s.brush * 1.1;
+  const force = 0.0025;
+
+  for (const p of particles) {
+    const ox = p.x - x;
+    const oy = p.y - y;
+    const distance = Math.hypot(ox, oy);
+
+    if (distance < radius && distance > 0.001) {
+      const f = (1 - distance / radius) * force * s.brush;
+      p.vx += dx * 0.001 + (ox / distance) * f;
+      p.vy += dy * 0.001 + (oy / distance) * f;
+    }
+  }
+}
+
+function drawParticle(p) {
+  const s = state();
+  const pset = presets[s.mode];
+  const normalizedLife = clamp(p.life / p.maxLife, 0, 1);
+  const fade = Math.pow(normalizedLife, 0.85) * s.softness;
+  const [r, g, b] = pset.color;
+  const radius = Math.max(1, p.size);
+
+  const gradient = ctx.createRadialGradient(
+    p.x, p.y, 0,
+    p.x, p.y, radius
+  );
+
+  if (s.mode === 'dust' || s.mode === 'spores') {
+    gradient.addColorStop(0, `rgba(${r},${g},${b},${pset.alpha * 1.2 * fade})`);
+    gradient.addColorStop(0.2, `rgba(${r},${g},${b},${pset.alpha * 0.6 * fade})`);
+    gradient.addColorStop(1, `rgba(${r},${g},${b},0)`);
+  } else {
+    gradient.addColorStop(0, `rgba(${r},${g},${b},${pset.alpha * 1.35 * fade})`);
+    gradient.addColorStop(0.32, `rgba(${r},${g},${b},${pset.alpha * 0.85 * fade})`);
+    gradient.addColorStop(1, `rgba(${r},${g},${b},0)`);
+  }
+
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (s.mode === 'spores') {
+    ctx.fillStyle = `rgba(255,255,255,${0.15 * fade})`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, Math.max(0.8, radius * 0.08), 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function update() {
+  if (paused) return;
+
+  time += 0.016;
+  const s = state();
+  const pset = presets[s.mode];
+
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+
+    const n1 = Math.sin((p.x * 0.008) + time * 1.4 + p.seed);
+    const n2 = Math.cos((p.y * 0.007) - time * 1.2 + p.seed * 1.3);
+    const swirl = Math.sin((p.x + p.y) * 0.005 + time * 0.8 + p.seed);
+
+    p.vx += n1 * pset.turbulence * 0.014 + swirl * 0.006 + s.windX;
+    p.vy += n2 * pset.turbulence * 0.012 + s.windY + s.lift;
+
+    p.vx *= pset.drag;
+    p.vy *= pset.drag;
+
+    const motionScale = 0.32;
+    p.x += p.vx * motionScale;
+    p.y += p.vy * motionScale;
+    p.life -= 0.32;
+
+    if (
+      p.life <= 0 ||
+      p.x < -200 ||
+      p.x > w + 200 ||
+      p.y < -200 ||
+      p.y > h + 200
+    ) {
+      particles.splice(i, 1);
+    }
+  }
+}
+
+function drawCameraCover(targetCtx, targetW, targetH) {
+  targetCtx.globalCompositeOperation = 'source-over';
+  targetCtx.fillStyle = '#000';
+  targetCtx.fillRect(0, 0, targetW, targetH);
+
+  if (!cameraReady || cameraVideo.readyState < 2 || !cameraVideo.videoWidth || !cameraVideo.videoHeight) {
+    return;
+  }
+
+  const sourceW = cameraVideo.videoWidth;
+  const sourceH = cameraVideo.videoHeight;
+  const scale = Math.max(targetW / sourceW, targetH / sourceH);
+  const drawW = sourceW * scale;
+  const drawH = sourceH * scale;
+  const dx = (targetW - drawW) * 0.5;
+  const dy = (targetH - drawH) * 0.5;
+
+  targetCtx.save();
+  if (cameraMirror) {
+    targetCtx.translate(targetW, 0);
+    targetCtx.scale(-1, 1);
+    targetCtx.drawImage(cameraVideo, targetW - dx - drawW, dy, drawW, drawH);
+  } else {
+    targetCtx.drawImage(cameraVideo, dx, dy, drawW, drawH);
+  }
+  targetCtx.restore();
+}
+
+function renderBackground() {
+  drawCameraCover(ctx, w, h);
+}
+
+function render() {
+  renderBackground();
+
+  ctx.globalCompositeOperation = presets[state().mode].blend;
+  for (const p of particles) {
+    drawParticle(p);
+  }
+
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+function copyFrameToRecordingCanvas() {
+  if (!recording || !recordingCtx) return;
+
+  recordingCtx.globalCompositeOperation = 'source-over';
+  recordingCtx.drawImage(
+    canvas,
+    0,
+    0,
+    canvas.width,
+    canvas.height,
+    0,
+    0,
+    recordingCanvas.width,
+    recordingCanvas.height
+  );
+}
+
+function setCameraButtonState() {
+  controls.cameraBtn.textContent = cameraReady ? 'Camera: ON' : 'Camera: OFF';
+  controls.cameraBtn.classList.toggle('active', cameraReady);
+}
+
+function setHandButtonState(label) {
+  controls.handBtn.textContent = label || (handTrackingEnabled ? 'Hand tracking: ON' : 'Hand tracking: OFF');
+  controls.handBtn.classList.toggle('active', handTrackingEnabled);
+}
+
+function cameraErrorMessage(error) {
+  const protocol = location.protocol || '';
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    return 'Camera is not available from this page. If the file is opened as content://, open it from an HTTPS page or a browser context that allows camera access.';
+  }
+  if (error && error.name === 'NotAllowedError') {
+    return 'Camera permission was blocked. Allow camera permission for this page/browser and tap CAMERA again.';
+  }
+  if (error && error.name === 'NotFoundError') {
+    return 'No camera was found on this device.';
+  }
+  if (protocol !== 'https:' && protocol !== 'http:' && protocol !== 'file:' && protocol !== 'content:') {
+    return 'This browser context does not allow live camera access.';
+  }
+  return 'Could not start the camera. Check camera permission and try again.';
+}
+
+async function startCamera() {
+  if (cameraReady || cameraStarting) return true;
+  cameraStarting = true;
+  controls.cameraBtn.textContent = 'Camera: STARTING';
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    cameraStarting = false;
+    setCameraButtonState();
+    alert(cameraErrorMessage());
+    return false;
+  }
+
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      },
+      audio: false
+    });
+
+    cameraVideo.srcObject = cameraStream;
+    await cameraVideo.play();
+
+    const track = cameraStream.getVideoTracks()[0];
+    const settings = track && track.getSettings ? track.getSettings() : {};
+    cameraMirror = settings.facingMode === 'user';
+    cameraReady = true;
+    setCameraButtonState();
+    return true;
+  } catch (error) {
+    console.error('Could not start camera:', error);
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+    }
+    cameraStream = null;
+    cameraVideo.srcObject = null;
+    cameraReady = false;
+    setCameraButtonState();
+    alert(cameraErrorMessage(error));
+    return false;
+  } finally {
+    cameraStarting = false;
+  }
+}
+
+function stopCamera() {
+  if (handTrackingEnabled) {
+    handTrackingEnabled = false;
+    trackedHand.active = false;
+    handCursor.style.display = 'none';
+    setHandButtonState();
+  }
+
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(track => track.stop());
+  }
+  cameraStream = null;
+  cameraVideo.srcObject = null;
+  cameraReady = false;
+  cameraMirror = false;
+  setCameraButtonState();
+}
+
+async function toggleCamera() {
+  if (cameraReady) {
+    stopCamera();
+  } else {
+    await startCamera();
+  }
+}
+
+function loadScriptOnce(src) {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[data-src="${src}"]`);
+    if (existing) {
+      if (existing.dataset.loaded === 'true') resolve();
+      else {
+        existing.addEventListener('load', resolve, { once: true });
+        existing.addEventListener('error', reject, { once: true });
+      }
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = true;
+    script.dataset.src = src;
+    script.addEventListener('load', () => {
+      script.dataset.loaded = 'true';
+      resolve();
+    }, { once: true });
+    script.addEventListener('error', reject, { once: true });
+    document.head.appendChild(script);
+  });
+}
+
+function normalizedCameraPointToCanvas(point) {
+  const sourceW = cameraVideo.videoWidth || 1;
+  const sourceH = cameraVideo.videoHeight || 1;
+  const scale = Math.max(w / sourceW, h / sourceH);
+  const drawW = sourceW * scale;
+  const drawH = sourceH * scale;
+  const dx = (w - drawW) * 0.5;
+  const dy = (h - drawH) * 0.5;
+
+  const sourceX = point.x * sourceW;
+  const sourceY = point.y * sourceH;
+  let x = dx + sourceX * scale;
+  const y = dy + sourceY * scale;
+
+  if (cameraMirror) {
+    x = w - x;
+  }
+
+  return { x, y };
+}
+
+function onHandResults(results) {
+  if (!handTrackingEnabled) return;
+  const landmarks = results.multiHandLandmarks && results.multiHandLandmarks[0];
+
+  if (!landmarks || !landmarks[8]) {
+    trackedHand.active = false;
+    handCursor.style.display = 'none';
+    return;
+  }
+
+  const point = normalizedCameraPointToCanvas(landmarks[8]);
+  const x = clamp(point.x, 0, w);
+  const y = clamp(point.y, 0, h);
+
+  handCursor.style.display = 'block';
+  handCursor.style.transform = `translate(${x}px, ${y}px)`;
+
+  if (trackedHand.active) {
+    const dx = x - trackedHand.x;
+    const dy = y - trackedHand.y;
+    const distance = Math.hypot(dx, dy);
+
+    // Ignore large jumps caused by temporary tracking loss.
+    if (distance < Math.max(w, h) * 0.20) {
+      spray(x, y, dx, dy);
+    }
+  }
+
+  trackedHand.active = true;
+  trackedHand.x = x;
+  trackedHand.y = y;
+}
+
+async function ensureHandTracking() {
+  if (handTrackingReady) return true;
+  if (handTrackingLoading) return false;
+
+  handTrackingLoading = true;
+  setHandButtonState('Hand tracking: LOADING');
+
+  try {
+    await loadScriptOnce('https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js');
+
+    if (typeof Hands === 'undefined') {
+      throw new Error('MediaPipe Hands did not load.');
+    }
+
+    handsDetector = new Hands({
+      locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+
+    handsDetector.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 0,
+      minDetectionConfidence: 0.55,
+      minTrackingConfidence: 0.55
+    });
+    handsDetector.onResults(onHandResults);
+
+    handTrackingReady = true;
+    return true;
+  } catch (error) {
+    console.error('Could not load hand tracking:', error);
+    alert('Could not load hand tracking. Internet access is required the first time because the hand-tracking model loads from MediaPipe.');
+    return false;
+  } finally {
+    handTrackingLoading = false;
+    setHandButtonState();
+  }
+}
+
+async function toggleHandTracking() {
+  if (handTrackingEnabled) {
+    handTrackingEnabled = false;
+    trackedHand.active = false;
+    handCursor.style.display = 'none';
+    setHandButtonState();
+    document.querySelector('.hint').textContent = 'TOUCH AND DRAG';
+    return;
+  }
+
+  if (!cameraReady) {
+    const started = await startCamera();
+    if (!started) return;
+  }
+
+  const ready = await ensureHandTracking();
+  if (!ready) return;
+
+  handTrackingEnabled = true;
+  trackedHand.active = false;
+  setHandButtonState();
+  document.querySelector('.hint').textContent = 'MOVE INDEX FINGER';
+}
+
+async function processHandFrame(now) {
+  if (
+    handTrackingEnabled &&
+    handTrackingReady &&
+    cameraReady &&
+    handsDetector &&
+    !handFrameBusy &&
+    cameraVideo.readyState >= 2 &&
+    now - lastHandFrameTime >= 66
+  ) {
+    lastHandFrameTime = now;
+    handFrameBusy = true;
+    try {
+      await handsDetector.send({ image: cameraVideo });
+    } catch (error) {
+      console.error('Hand tracking frame failed:', error);
+    } finally {
+      handFrameBusy = false;
+    }
+  }
+  requestAnimationFrame(processHandFrame);
+}
+
+function loop() {
+  update();
+  render();
+  requestAnimationFrame(loop);
+}
+
+setCameraButtonState();
+setHandButtonState();
+requestAnimationFrame(loop);
+requestAnimationFrame(processHandFrame);
+
+window.addEventListener('pagehide', () => {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(track => track.stop());
+  }
+});
+
+function clearAll() {
+  particles.length = 0;
+}
+
+function seedCloudCluster(cx, cy, rx, ry, count, sizeMul = 1) {
+  const savedMode = controls.mode.value;
+  controls.mode.value = 'cloud';
+
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const rr = Math.sqrt(Math.random());
+
+    addParticle(
+      cx + Math.cos(angle) * rx * rr,
+      cy + Math.sin(angle) * ry * rr,
+      rand(-0.10, 0.10),
+      rand(-0.06, 0.06),
+      rand(1.0, 1.5) * sizeMul
+    );
+  }
+
+  controls.mode.value = savedMode;
+}
+
+function seedSky() {
+  clearAll();
+  seedCloudCluster(w * 0.52, h * 0.50, w * 0.17, h * 0.12, 440, 1.55);
+  seedCloudCluster(w * 0.70, h * 0.38, w * 0.11, h * 0.09, 220, 1.10);
+  seedCloudCluster(w * 0.24, h * 0.37, w * 0.12, h * 0.10, 170, 1.00);
+  seedCloudCluster(w * 0.84, h * 0.16, w * 0.08, h * 0.06, 100, 0.90);
+  seedCloudCluster(w * 0.33, h * 0.80, w * 0.10, h * 0.05, 55, 0.60);
+}
+
+seedSky();
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function drawToExportCanvas() {
+  const exportW = 1080;
+  const exportH = 1920;
+
+  exportCanvas.width = exportW;
+  exportCanvas.height = exportH;
+
+  const sourceW = canvas.width;
+  const sourceH = canvas.height;
+
+  const coverScale = Math.max(
+    exportW / sourceW,
+    exportH / sourceH
+  );
+
+  const drawW = sourceW * coverScale;
+  const drawH = sourceH * coverScale;
+  const dx = (exportW - drawW) * 0.5;
+  const dy = (exportH - drawH) * 0.5;
+
+  exportCtx.drawImage(
+    canvas,
+    dx,
+    dy,
+    drawW,
+    drawH
+  );
+}
+
+function exportPNG() {
+  drawToExportCanvas();
+
+  const link = document.createElement('a');
+  link.download = `cloud_9x16_${Date.now()}.png`;
+  link.href = exportCanvas.toDataURL('image/png');
+  link.click();
+}
+
+function toggleVideoRecording() {
+  const btn = controls.videoBtn;
+
+  if (
+    !exportCanvas.captureStream ||
+    !window.MediaRecorder
+  ) {
+    alert('Video export is not supported in this browser. Try Chrome or Edge.');
+    return;
+  }
+
+  let mimeType = '';
+
+  if (
+    MediaRecorder.isTypeSupported(
+      'video/mp4;codecs=h264'
+    )
+  ) {
+    mimeType = 'video/mp4;codecs=h264';
+  } else if (
+    MediaRecorder.isTypeSupported('video/mp4')
+  ) {
+    mimeType = 'video/mp4';
+  } else if (
+    MediaRecorder.isTypeSupported(
+      'video/webm;codecs=vp9'
+    )
+  ) {
+    mimeType = 'video/webm;codecs=vp9';
+  } else if (
+    MediaRecorder.isTypeSupported('video/webm')
+  ) {
+    mimeType = 'video/webm';
+  } else {
+    alert('Video export is not supported in this browser.');
+    return;
+  }
+
+  const isMP4 = mimeType.includes('mp4');
+  const extension = isMP4 ? 'mp4' : 'webm';
+
+  exportCanvas.width = 1080;
+  exportCanvas.height = 1920;
+
+  const stream = exportCanvas.captureStream(30);
+  const chunks = [];
+
+  let recorder;
+
+  try {
+    recorder = new MediaRecorder(stream, {
+      mimeType: mimeType,
+      videoBitsPerSecond: 9000000
+    });
+  } catch (error) {
+    alert(
+      'Could not start video recorder: ' +
+      error.message
+    );
+    return;
+  }
+
+  let recording = true;
+  let countdownTimer = null;
+
+  function drawExportFrame() {
+    if (!recording) return;
+
+    drawToExportCanvas();
+    requestAnimationFrame(drawExportFrame);
+  }
+
+  recorder.ondataavailable = event => {
+    if (
+      event.data &&
+      event.data.size > 0
+    ) {
+      chunks.push(event.data);
+    }
+  };
+
+  recorder.onerror = event => {
+    console.error(
+      'Video recorder error:',
+      event.error || event
+    );
+  };
+
+  recorder.onstop = () => {
+    recording = false;
+
+    if (countdownTimer) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
+
+    stream
+      .getTracks()
+      .forEach(track => track.stop());
+
+    const blob = new Blob(chunks, {
+      type: mimeType
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.download =
+      `cloud_9x16_10sec.${extension}`;
+
+    link.href = url;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    setTimeout(
+      () => URL.revokeObjectURL(url),
+      1000
+    );
+
+    btn.textContent = 'Export video';
+    btn.disabled = false;
+    btn.style.opacity = '1';
+  };
+
+  btn.disabled = true;
+  btn.style.opacity = '0.65';
+
+  let secondsLeft = 10;
+  btn.textContent = 'Recording 10s';
+
+  countdownTimer = setInterval(() => {
+    secondsLeft -= 1;
+    btn.textContent =
+      'Recording ' +
+      Math.max(0, secondsLeft) +
+      's';
+
+    if (secondsLeft <= 0) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
+  }, 1000);
+
+  drawExportFrame();
+  recorder.start();
+
+  setTimeout(() => {
+    if (
+      recorder &&
+      recorder.state === 'recording'
+    ) {
+      recorder.stop();
+    }
+  }, 10000);
+}
+
+controls.clearBtn.addEventListener('click', clearAll);
+controls.seedBtn.addEventListener('click', seedSky);
+controls.pngBtn.addEventListener('click', exportPNG);
+controls.videoBtn.addEventListener('click', toggleVideoRecording);
+controls.cameraBtn.addEventListener('click', toggleCamera);
+controls.handBtn.addEventListener('click', toggleHandTracking);
+
+controls.pauseBtn.addEventListener('click', () => {
+  paused = !paused;
+  controls.pauseBtn.textContent = paused ? 'Play' : 'Pause';
+});
+
+const pointer = {
+  down: false,
+  x: 0,
+  y: 0,
+  px: 0,
+  py: 0
+};
+
+function getPos(event) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: event.clientX - rect.left,
+    y: event.clientY - rect.top
+  };
+}
+
+canvas.addEventListener('pointerdown', event => {
+  event.preventDefault();
+
+  const p = getPos(event);
+  pointer.down = true;
+  pointer.x = pointer.px = p.x;
+  pointer.y = pointer.py = p.y;
+
+  spray(pointer.x, pointer.y, 0, 0);
+  canvas.setPointerCapture(event.pointerId);
+});
+
+canvas.addEventListener('pointermove', event => {
+  const p = getPos(event);
+  pointer.x = p.x;
+  pointer.y = p.y;
+
+  if (pointer.down) {
+    const dx = pointer.x - pointer.px;
+    const dy = pointer.y - pointer.py;
+    spray(pointer.x, pointer.y, dx, dy);
+  }
+
+  pointer.px = pointer.x;
+  pointer.py = pointer.y;
+});
+
+function endPointer() {
+  pointer.down = false;
+}
+
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('pointerleave', endPointer);
+</script>
+</body>
+</html>
